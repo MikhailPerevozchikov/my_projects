@@ -1,0 +1,26 @@
+WITH data_rfm AS (
+    SELECT
+        card,
+        CASE
+            WHEN recency <= (SELECT percentile_33_recency FROM cohort_percentile) THEN 1
+            WHEN recency <= (SELECT percentile_66_recency FROM cohort_percentile) THEN 2
+            ELSE 3
+        END AS r,
+        CASE
+            WHEN frequency <= (SELECT percentile_33_frequency FROM cohort_percentile) THEN 3
+            WHEN frequency <= (SELECT percentile_66_frequency FROM cohort_percentile) THEN 2
+            ELSE 1
+        END AS f,
+        CASE
+            WHEN monetary <= (SELECT percentile_33_monetary FROM cohort_percentile) THEN 3
+            WHEN monetary <= (SELECT percentile_66_monetary FROM cohort_percentile) THEN 2
+            ELSE 1
+        END AS m
+    FROM cohort_als
+    ORDER BY card
+)
+SELECT
+    card,
+    CONCAT(r, f, m) AS rfm_segm
+FROM data_rfm
+ORDER BY rfm_segm
