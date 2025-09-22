@@ -1,16 +1,107 @@
-WITH abc_xyz AS (
+Атрибуты таблицы продаж
+order_id --> идентификатор заказа;
+date --> дата заказа;
+full_date --> дата и время заказа;
+year --> год заказа;
+month_year --> месяц-год заказа;
+month --> месяц заказа;
+day_of_week --> день недели;
+hour --> час заказа;
+name --> название заказанного товара;
+size --> размер;
+category --> категория товара;
+price --> цена товара;
+quantity --> количество заказанного товара;
+revenue --> выручка с заказанного товара (price * quantity);
+ingredients --> ингредиенты для товара;
+quantity_str --> количество единиц заказанных единиц (строка).
+
+ABC-АНАЛИЗ
+
+Код для понимания принципа проведения анализа ABC-анализа:
+WITH sales AS (
     SELECT
-        abc.name,
-        abc.abc_amount,
-        abc.abc_revenue,
-        xyz.xyz
-    FROM result_abc abc
-    JOIN result_xyz xyz
-        ON abc.name = xyz.name
-    ORDER BY abc.name
+        name,
+        SUM(quantity) AS amount,
+        SUM(revenue) AS revenue
+    FROM pizza_trim_data
+    WHERE year = 2015
+    GROUP BY name
+    ORDER BY name
 )
 SELECT
-    name AS pizza,
-    abc_amount || xyz AS abc_xyz_quantity,
-    abc_revenue || xyz AS abc_xyz_revenue
-FROM abc_xyz
+    name,
+    amount,
+    SUM(amount) OVER(ORDER BY amount DESC) AS total_sale,
+    SUM(amount) OVER() AS sum_sale,
+    SUM(amount) OVER(ORDER BY amount DESC) / SUM(amount) OVER() AS share_summ
+FROM sales
+
+Код итогового запроса по проведению ABC-анализа:
+WITH sales_data AS (
+    SELECT
+        name,
+        SUM(quantity) AS amount,
+        SUM(revenue) AS revenue
+    FROM pizza_trim_data
+    WHERE year = 2015
+    GROUP BY name
+    ORDER BY name
+)
+SELECT
+    name,
+    CASE
+        WHEN SUM(amount) OVER (ORDER BY amount DESC) / SUM(amount) OVER () <= 0.8 THEN 'A'
+        WHEN SUM(amount) OVER (ORDER BY amount DESC) / SUM(amount) OVER () <= 0.95 THEN 'B'
+        ELSE 'C'
+    END abc_amount,
+    CASE
+        WHEN SUM(revenue) OVER (ORDER BY revenue DESC) / SUM(revenue) OVER () <= 0.8 THEN 'A'
+        WHEN SUM(revenue) OVER (ORDER BY revenue DESC) / SUM(revenue) OVER () <= 0.95 THEN 'B'
+        ELSE 'C'
+    END abc_revenue
+FROM sales_data
+
+
+XYZ-АНАЛИЗ
+
+WITH group_data_xyz AS (
+    SELECT
+        month,
+        name,
+        SUM(quantity) AS quantity
+    FROM pizza_trim_data
+    WHERE year = 2015
+    GROUP BY month, name
+    ORDER BY name
+), xyz AS (
+    SELECT
+        month,
+        name,
+        quantity,
+        STDDEV_POP(quantity) OVER (PARTITION BY name),
+        AVG(quantity) OVER (PARTITION BY name),
+        ROUND(STDDEV_POP(quantity) OVER (PARTITION BY name) / AVG(quantity) OVER (PARTITION BY name), 3) AS covar
+    FROM group_data_xyz
+), xyz_total AS (
+    SELECT
+        name,
+        MIN(covar) AS cov
+    FROM xyz
+    GROUP BY name
+)
+SELECT
+    name,
+    cov,
+    CASE
+        WHEN cov <= 0.1 THEN 'X'
+        WHEN cov <= 0.20 THEN 'Y'
+        ELSE 'Z'
+    END xyz
+FROM xyz_total
+ORDER BY name
+
+
+
+
+
